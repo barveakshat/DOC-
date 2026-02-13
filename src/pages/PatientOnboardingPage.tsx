@@ -182,17 +182,14 @@ const PatientOnboardingPage: React.FC = () => {
           user_id: user.id,
         };
 
-        const updateResult: any = await (supabase as any)
+        const { data, error } = await supabase
           .from('patients')
-          .update(updateData)
+          .update(updateData as any)
           .eq('email', patientEmail)
           .eq('assigned_doctor_id', invitedDoctor.user_id)
           .eq('invitation_status', 'pending')
           .select()
           .single();
-
-        const data = updateResult.data;
-        const error = updateResult.error;
 
         if (error) throw error;
         patientData = data;

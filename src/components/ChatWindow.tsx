@@ -27,7 +27,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session, onSessionUpdate, onNew
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dbContext, setDbContext] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
@@ -45,81 +44,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session, onSessionUpdate, onNew
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-
-  // Fetch database context when session changes or patient is selected
-  useEffect(() => {
-    const fetchDatabaseContext = async () => {
-      if (!session || !user) return;
-
-      try {
-        const context: any = {
-          sessionType: session.session_type,
-          patientInfo: null,
-          doctorInfo: null
-        };
-
-        // For AI-doctor sessions, fetch patient info if one is selected via @ mention
-        if (session.session_type === 'ai-doctor' && user.role === 'doctor') {
-          // Use selected patient from @ mention if available
-          if (selectedPatient) {
-            context.patientInfo = selectedPatient;
-          }
-          // Also fetch doctor's own info
-          const doctorInfo = await OpenRouterService.fetchDoctorContext(user.id);
-          if (doctorInfo) context.doctorInfo = doctorInfo;
-        }
-
-        // For AI-patient sessions, fetch both patient and their assigned doctor info
-        if (session.session_type === 'ai-patient' && user.role === 'patient') {
-          const patientInfo = await OpenRouterService.fetchPatientContext(user.id);
-          if (patientInfo) {
-            context.patientInfo = patientInfo;
-            
-            // Fetch assigned doctor info if available
-            if (patientInfo.assigned_doctor_id) {
-              const doctorInfo = await OpenRouterService.fetchDoctorContext(patientInfo.assigned_doctor_id);
-              if (doctorInfo) context.doctorInfo = doctorInfo;
-            }
-          }
-        }
-
-        // For doctor-patient sessions, fetch both
-        if (session.session_type === 'doctor-patient') {
-          if (user.role === 'doctor') {
-            const doctorInfo = await OpenRouterService.fetchDoctorContext(user.id);
-            if (doctorInfo) context.doctorInfo = doctorInfo;
-            
-            if (session.participant_2_id) {
-              const patientInfo = await OpenRouterService.fetchPatientContext(session.participant_2_id);
-              if (patientInfo) context.patientInfo = patientInfo;
-            }
-          } else {
-            const patientInfo = await OpenRouterService.fetchPatientContext(user.id);
-            if (patientInfo) {
-              context.patientInfo = patientInfo;
-              
-              if (patientInfo.assigned_doctor_id) {
-                const doctorInfo = await OpenRouterService.fetchDoctorContext(patientInfo.assigned_doctor_id);
-                if (doctorInfo) context.doctorInfo = doctorInfo;
-              }
-            }
-          }
-        }
-
-        console.log('Database context fetched:', { 
-          hasPatient: !!context.patientInfo, 
-          hasDoctor: !!context.doctorInfo,
-          patientName: context.patientInfo?.name 
-        });
-        setDbContext(context);
-
-      } catch (error) {
-        console.error('Error fetching database context:', error);
-      }
-    };
-
-    fetchDatabaseContext();
-  }, [session, user, selectedPatient]); // Re-fetch when selectedPatient changes
 
   // Fetch patients for @ mention - only for doctors
   const fetchPatients = async (searchTerm: string = '') => {
@@ -223,7 +147,7 @@ Address: ${patient.address || 'Not provided'}`;
   useEffect(() => {
     if (session?.id && user?.id && messages.length > 0) {
       const markAsRead = async () => {
-        const { error } = await ChatAPI.markMessagesAsRead(session.id, user.auth_user_id || user.id);
+        const { error } = await ChatAPI.markMessagesAsRead(session.id, user.user_id);
         if (error) {
         }
       };
@@ -265,11 +189,14 @@ Address: ${patient.address || 'Not provided'}`;
       // Generate AI response if this is an AI session
       if (session.session_type.includes('ai')) {
         try {
+          const patientContext = (isDoctorAIChat && selectedPatient) ? getPatientContext(selectedPatient) : undefined;
+          
           const aiResult = await OpenRouterService.generateDoctorResponse(
             messageContent,
             messages, // Pass conversation history
             session.session_type,
-            dbContext  // Pass database context with patient/doctor info
+            patientContext,
+            undefined // fileContext - can be added later if needed
           );
 
           if (aiResult.success && aiResult.response) {
