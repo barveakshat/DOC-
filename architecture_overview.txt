@@ -1,0 +1,112 @@
+
+    ╔═══════════════════════════════════════════════════════════════╗
+    ║           DOC+ Medical Assistant Architecture                 ║
+    ╚═══════════════════════════════════════════════════════════════╝
+    
+    📁 Project Structure:
+    
+    ├── 🎨 Frontend (React + TypeScript + Vite)
+    │   ├── Pages/
+    │   │   ├── DoctorDashboard - Doctor main interface
+    │   │   ├── DoctorChat - Doctor-patient messaging
+    │   │   ├── AIChat - AI therapeutic chat for patients
+    │   │   ├── PatientRegistration - New patient onboarding
+    │   │   └── SignIn/SignUp - Authentication pages
+    │   │
+    │   ├── Components/
+    │   │   ├── ChatInterface - Main chat UI component
+    │   │   ├── ChatWindow - Message display and input
+    │   │   ├── DoctorOnboarding - Doctor registration flow
+    │   │   ├── DoctorProfile - Doctor information management
+    │   │   └── PatientProfile - Patient information display
+    │   │
+    │   ├── Contexts/
+    │   │   └── AuthContext - Global authentication state
+    │   │
+    │   ├── Hooks/
+    │   │   ├── useChatSessions - Chat session management
+    │   │   └── useDoctorPatientChat - Doctor-patient chat logic
+    │   │
+    │   ├── Services/
+    │   │   └── openRouterService - AI integration service
+    │   │
+    │   └── Integrations/
+    │       └── supabase/ - Supabase client configuration
+    │
+    ├── 🔐 Authentication (Clerk)
+    │   ├── User Management
+    │   ├── Session Handling
+    │   └── Role-based Access Control (Doctor/Patient)
+    │
+    ├── 🗄️ Backend (Supabase)
+    │   ├── PostgreSQL Database
+    │   │   ├── doctors - Doctor profiles and credentials
+    │   │   ├── patients - Patient records and medical history
+    │   │   ├── chat_sessions - Conversation sessions
+    │   │   └── chat_messages - Individual messages
+    │   │
+    │   ├── Row Level Security (RLS)
+    │   │   ├── Doctor policies - Access to assigned patients
+    │   │   └── Patient policies - Access to own data
+    │   │
+    │   ├── Edge Functions
+    │   │   └── Serverless backend logic
+    │   │
+    │   └── Storage
+    │       └── Medical file uploads
+    │
+    └── 🔌 External Services
+        ├── OpenRouter API - AI/ML models (GPT-OSS-20B)
+        └── Resend - Email delivery service
+    
+    ═══════════════════════════════════════════════════════════════
+    
+    🔄 Key Data Flows:
+    
+    1. Doctor Registration:
+       Doctor → Clerk Auth → Supabase → doctors table
+    
+    2. Patient Registration:
+       Doctor → Patient Invitation → Email → Patient Signup
+       → Clerk Auth → Supabase → patients table
+    
+    3. Chat Communication:
+       User → ChatInterface → useChatSessions Hook
+       → Supabase Realtime → chat_sessions/chat_messages
+    
+    4. AI Therapeutic Chat:
+       Patient → AIChat → openRouterService
+       → OpenRouter API → GPT-OSS-20B → Response
+    
+    5. File Upload:
+       User → Component → Supabase Storage → File URL
+       → Database Reference
+    
+    ═══════════════════════════════════════════════════════════════
+    
+    📊 Technology Stack:
+    
+    Frontend:
+    - React 18 + TypeScript
+    - Vite (Build Tool)
+    - Tailwind CSS + shadcn/ui
+    - React Query (@tanstack/react-query)
+    - React Router
+    
+    Authentication:
+    - Clerk (@clerk/clerk-react)
+    
+    Backend:
+    - Supabase (@supabase/supabase-js)
+    - PostgreSQL (via Supabase)
+    - Supabase Edge Functions
+    
+    AI/ML:
+    - OpenRouter API
+    - GPT-OSS-20B Model
+    
+    Other Services:
+    - Resend (Email)
+    
+    ═══════════════════════════════════════════════════════════════
+    

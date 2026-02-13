@@ -167,7 +167,9 @@ export const useMessages = (sessionId: string | null) => {
       }
 
       console.log('Message inserted successfully:', data);
-      setMessages(prev => [...prev, data]);
+      // Don't add to local state immediately - let real-time subscription handle it
+      // This prevents duplicate messages and ensures real-time delivery works properly
+      // setMessages(prev => [...prev, data]);
       return data;
     } catch (error) {
       console.error('Error sending message:', error);
@@ -183,13 +185,15 @@ export const useMessages = (sessionId: string | null) => {
     }
   }, [sessionId]);
 
-  // Realtime subscription for new messages
+  // Real-time subscription for messages
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      console.log('useMessages: No sessionId provided, skipping real-time subscription setup');
+      return;
+    }
 
-    console.log('Setting up realtime subscription for messages in session:', sessionId);
+    console.log('useMessages: Setting up real-time subscription for messages in session:', sessionId);
 
-    // Create a unique channel for this chat session
     const channelName = `chat-messages-${sessionId}-${Date.now()}`;
     console.log('Creating channel:', channelName);
     
@@ -204,55 +208,54 @@ export const useMessages = (sessionId: string | null) => {
           filter: `session_id=eq.${sessionId}`,
         },
         (payload) => {
-          console.log('Realtime message received in useMessages:', payload);
-
-          // Only add the message if it's not already in our state (to avoid duplicates)
+          console.log('useMessages: Real-time new message received:', payload);
           setMessages(prev => {
-            const messageExists = prev.some(msg => msg.id === payload.new.id);
-            if (messageExists) {
-              console.log('Message already exists in useMessages, skipping:', payload.new.id);
+            // Check if message already exists to avoid duplicates
+            const exists = prev.some(msg => msg.id === payload.new.id);
+            if (exists) {
+              console.log('useMessages: Message already exists, skipping duplicate');
               return prev;
             }
-
-            console.log('Adding new message to useMessages state:', payload.new);
+            console.log('useMessages: Adding new message to messages array');
             return [...prev, payload.new as Message];
           });
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `session_id=eq.${sessionId}`,
+        },
+        (payload) => {
+          console.log('useMessages: Message updated:', payload);
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === payload.new.id
+                ? { ...msg, ...payload.new } as Message
+                : msg
+            )
+          );
+        }
+      )
       .subscribe((status, err) => {
-        console.log('useMessages realtime subscription status:', status);
+        console.log('useMessages: Real-time subscription status:', status);
         if (err) {
           console.error('Realtime subscription error details:', err);
           console.error('Error message:', err.message);
-          console.error('Error name:', err.name);
-          
-          // Log additional context for debugging
-          console.error('Session ID:', sessionId);
-          console.error('User ID:', user?.id);
-          console.error('Channel name:', channelName);
         }
         
         if (status === 'SUBSCRIBED') {
           console.log('Successfully subscribed to realtime updates for messages in session:', sessionId);
         } else if (status === 'CHANNEL_ERROR') {
           console.error('Realtime subscription CHANNEL_ERROR for messages in session:', sessionId, err);
-          
-          // Attempt to reconnect after a delay
-          setTimeout(() => {
-            console.log('Attempting to reconnect realtime subscription for session:', sessionId);
-            // The useEffect will re-run and create a new subscription
-          }, 5000);
-          
-        } else if (status === 'TIMED_OUT') {
-          console.warn('Realtime subscription TIMED_OUT for messages in session:', sessionId);
-        } else if (status === 'CLOSED') {
-          console.log('Realtime subscription CLOSED for messages in session:', sessionId);
         }
       });
 
-    // Cleanup function to unsubscribe when component unmounts or sessionId changes
     return () => {
-      console.log('Cleaning up realtime subscription for messages in session:', sessionId);
+      console.log('useMessages: Cleaning up real-time subscription for messages in session:', sessionId);
       supabase.removeChannel(channel);
     };
   }, [sessionId]);

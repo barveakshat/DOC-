@@ -243,3 +243,4 @@ From `package.json`:
 Questions or improvements welcome—feel free to open an issue or PR.
 
 — Doc+ Team
+

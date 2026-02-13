@@ -75,7 +75,7 @@ export const useDoctorPatientChat = (sessionId: string | null) => {
         .from(CHAT_SESSIONS_TABLE)
         .select('*')
         .eq('session_type', 'doctor-patient')
-        .or(`participant_1_id.eq.${user.id},participant_2_id.eq.${user.id}`)
+        .or(`participant_1_id.eq.${user.auth_user_id || user.id},participant_2_id.eq.${user.auth_user_id || user.id}`)
         .order('last_message_at', { ascending: false, nullsFirst: false });
 
       if (error) {
@@ -223,7 +223,8 @@ export const useDoctorPatientChat = (sessionId: string | null) => {
       }
 
       console.log('Message sent successfully:', data.id);
-      // The realtime subscription will handle adding the message to the state
+      // Don't add to local state immediately - let real-time subscription handle it
+      // This prevents duplicate messages and ensures real-time delivery works properly
       return data;
     } catch (error) {
       console.error('Error sending message:', error);
@@ -278,66 +279,78 @@ export const useDoctorPatientChat = (sessionId: string | null) => {
     }
   }, [sessionId, user?.id, fetchMessages]);
 
-  // Realtime subscription
+  // Real-time subscription for messages
   useEffect(() => {
-    if (!sessionId || !user?.id) {
-      console.log('Missing sessionId or user, skipping realtime subscription');
+    if (!sessionId) {
+      console.log('No sessionId provided, skipping real-time subscription setup');
       return;
     }
 
-    const channelName = `doctor-patient-chat-${sessionId}-${Date.now()}`;
-    console.log('Setting up realtime subscription:', channelName);
+    console.log('Setting up real-time subscription for session:', sessionId);
 
     const channel = supabase
-      .channel(channelName)
+      .channel(`doctor-patient-messages:${sessionId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
-          table: MESSAGES_TABLE,
-          filter: `session_id=eq.${sessionId}`
+          table: 'messages',
+          filter: `session_id=eq.${sessionId}`,
         },
         (payload) => {
-          console.log('🎉 Realtime message received:', payload);
+          console.log('Real-time: New message received for session', sessionId, ':', payload);
+          const newMessage = {
+            id: payload.new.id,
+            session_id: payload.new.session_id,
+            sender_id: payload.new.sender_id,
+            content: payload.new.content,
+            is_read: payload.new.is_read || false,
+            is_ai_message: payload.new.is_ai_message || false,
+            created_at: payload.new.created_at
+          };
 
-          const newMessage = payload.new as DoctorPatientMessage;
-
-          if (!newMessage || !newMessage.id) {
-            console.warn('Invalid payload received:', payload);
-            return;
-          }
-
+          console.log('Real-time: Adding new message to state:', newMessage.id);
           setMessages(prev => {
-            // Check for duplicates
-            if (prev.some(msg => msg.id === newMessage.id)) {
-              console.log('Message already exists, skipping:', newMessage.id);
+            // Check if message already exists to avoid duplicates
+            const exists = prev.some(msg => msg.id === newMessage.id);
+            if (exists) {
+              console.log('Real-time: Message already exists, skipping duplicate');
               return prev;
             }
-            console.log('✅ Adding new message to state:', newMessage.id);
-            return [...prev, newMessage];
+            console.log('Real-time: Adding new message to messages array');
+            return [...prev, newMessage] as DoctorPatientMessage[];
           });
         }
       )
-      .subscribe((status, err) => {
-        console.log(`Realtime subscription status for ${channelName}:`, status);
-
-        if (err) {
-          console.error('Realtime subscription error details:', err);
-          return;
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `session_id=eq.${sessionId}`,
+        },
+        (payload) => {
+          console.log('Real-time: Message updated for session', sessionId, ':', payload);
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === payload.new.id
+                ? { ...msg, is_read: payload.new.is_read }
+                : msg
+            )
+          );
         }
-
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ Successfully subscribed to realtime updates for session:', sessionId);
-        }
+      )
+      .subscribe((status) => {
+        console.log('Real-time subscription status for session', sessionId, ':', status);
       });
 
-    // Cleanup function to unsubscribe when component unmounts or sessionId changes
     return () => {
-      console.log('🧹 Cleaning up realtime subscription for session:', sessionId);
+      console.log('Cleaning up real-time subscription for session:', sessionId);
       supabase.removeChannel(channel);
     };
-  }, [sessionId, user?.id]);
+  }, [sessionId]);
 
   return {
     sessions,

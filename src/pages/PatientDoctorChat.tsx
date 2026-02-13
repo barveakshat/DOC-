@@ -244,7 +244,7 @@ const PatientDoctorChat = () => {
       console.log('Creating new session (or finding existing one)');
       const newSession = await createDoctorPatientSession(
         doctorUserId,
-        user.user_id || user.id, // Use database user_id if available, fallback to Clerk id
+        user.auth_user_id || user.id, // Use auth_user_id for consistency with Clerk user ID
         `Chat with Dr. ${doctorInfo?.name || 'Doctor'}`
       );
 

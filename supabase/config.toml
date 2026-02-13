@@ -42,3 +42,6 @@ jwt_expiry = 3600
 
 [functions.send-temp-password]
 verify_jwt = true
+
+[functions.invite-patient]
+verify_jwt = true

@@ -93,11 +93,14 @@ const PatientRegistration = () => {
         } else {
           // Strategy 2: Try clerk_user_id if it exists
           console.log('Trying clerk_user_id lookup...');
-          const { data: doctorByClerkId, error: clerkIdError } = await supabase
+          const clerkResult: any = await (supabase as any)
             .from('doctors')
             .select('user_id, name')
             .eq('clerk_user_id', doctorUserId)
-            .single();
+            .maybeSingle();
+          
+          const doctorByClerkId = clerkResult.data;
+          const clerkIdError = clerkResult.error;
 
           console.log('Clerk ID lookup result:', { doctorByClerkId, clerkIdError });
 
@@ -106,11 +109,14 @@ const PatientRegistration = () => {
           } else {
             // Strategy 3: If no exact match, get the first available doctor
             console.log('Getting first available doctor...');
-            const { data: firstDoctor, error: firstDoctorError } = await supabase
+            const firstResult: any = await (supabase as any)
               .from('doctors')
               .select('user_id, name')
               .limit(1)
-              .single();
+              .maybeSingle();
+            
+            const firstDoctor = firstResult.data;
+            const firstDoctorError = firstResult.error;
 
             console.log('First doctor lookup result:', { firstDoctor, firstDoctorError });
 
@@ -177,7 +183,7 @@ const PatientRegistration = () => {
         throw patientError;
       }
 
-      // Send invitation email with doctor's user_id
+// Send invitation email with doctor's user_id
       try {
         console.log('Attempting to send invitation email via Edge Function...');
         console.log('Doctor user ID:', actualDoctorUserId);
@@ -258,13 +264,14 @@ const PatientRegistration = () => {
           .single();
 
         if (chatError) {
-          console.warn('Patient registered successfully but chat session creation failed:', chatError);
-          // Don't fail the registration, just log the warning
+          console.warn('Failed to create chat session:', chatError);
         }
       } catch (chatSessionError) {
-        console.warn('Error creating chat session for new patient:', chatSessionError);
-        // Don't fail the registration if chat session creation fails
+        console.warn('Error creating chat session:', chatSessionError);
       }
+
+      // Chat session will be created when patient accepts invitation and signs in
+      // For now, just mark the patient as registered with invitation pending
 
       // Reset form
       setPatientData({

@@ -142,29 +142,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('🚀 Setting up Supabase OAuth for Clerk user:', clerkUser.id);
 
-      // Get the JWT token from Clerk
-      const token = await clerkUser.getToken({ template: 'supabase' }) || await clerkUser.getToken();
-      console.log('🔑 Got Clerk JWT token:', token ? '***' + token.slice(-10) : 'null');
+      // Skip JWT token retrieval for now - not needed for current auth flow
+      // The authentication works through profile lookup instead
+      console.log('🔄 Skipping JWT token setup - using profile lookup authentication');
 
-      if (token) {
-        // Set the JWT token in Supabase auth
-        // We'll use the token directly for authenticated requests
-        console.log('✅ Clerk JWT token available for Supabase auth');
-
-        // For now, let's create a minimal session object to satisfy the auth state
-        // The actual authentication will happen via the JWT token in requests
-        const mockSession = {
-          access_token: token,
-          refresh_token: '',
-          user: {
-            id: clerkUser.id,
-            email: clerkUser.primaryEmailAddress?.emailAddress,
-          },
-        };
-        setSession(mockSession as any);
-      }
-
-      // Start checking for user profile
+      // Start checking for user profile (this will work even without JWT token)
       setIsCheckingProfile(true);
       // Fetch user profile based on Clerk user ID
       await fetchUserProfileByClerkId(clerkUser.id);
